@@ -15,4 +15,7 @@ pom.xml.asc
 
 .externalToolBuilders
 
+# cljs
 out
+.repl
+

@@ -23,6 +23,7 @@
     {:pre [(string? expr)]}
     (nrepl/message session {:op "eval" :code expr})))
 
+;; TODO should be private (macro usage)
 (defn eval-value
   [expr responses]
   (when-let [combined (and (->> responses (mapcat :status) (some #{"eval-error"}))
@@ -30,13 +31,14 @@
     (throw (ex-info "Failed to evaluate" {:expr expr :combined-response combined})))
   (-> responses nrepl/response-values first))
 
+;; TODO allow quasiquote
 (defmacro eval
   ([expr] `(eval ~*repl-session* ~expr))
   ([session expr]
     `(let [code# ~(code expr)]
        (eval-value code# (eval* ~session code#)))))
 
-;; TODO need to make the returned session .close-able, especially for when new servers are started
+;; TODO need to make the returned session .close-able, cascading to any started servers 
 (defn prep-session
   [repl]
   (let [md (meta repl)]
@@ -57,6 +59,8 @@
       :else (throw (IllegalArgumentException.
                      (str "don't know how to make an nREPL session out of " (type repl)))))))
 
+;; TODO doesn't work due to eval macro evaluating the var
+#_
 (defmacro with-session
   [session & body]
   `(binding [*repl-session* ~session]
@@ -71,6 +75,7 @@
   (eval session (cemerick.piggieback/cljs-repl))
   session)
 
+;; TODO add hooks so this works with webdriver et al.
 (require 'cljs.repl.browser)
 (defn prepare-cljs-browser
   ([session] (prepare-cljs-browser "http://localhost:8080" 9000 session))
