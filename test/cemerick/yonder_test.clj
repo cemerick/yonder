@@ -17,7 +17,7 @@
   (GET "/" [] "<html>
         <head>
           <meta charset='UTF-8'>
-          <title>Browser-connected REPL through nREPL with Piggieback</title>
+          <title>Browser-connected REPL for yonder</title>
         </head>
         <body>
           <div id='content'>
@@ -29,14 +29,27 @@
         </body>
       </html>"))
 
-(deftest cljs-sanity
+(defn- cljs-sanity
+  [session]
+  (is (= 6 (yonder/eval session (+ 1 2 3))))
+  (is (= 190 (yonder/eval session (reduce + (range 20)))))
+  (is (= [:a 'b ::c "d" 1 1.2 #{} () {:x :y}]
+          (yonder/eval session (into [] (js/Array :a 'b ::c "d" 1 1.2 #{} () {:x :y}))))))
+
+(deftest browser-repl-sanity
   (let [http (ring.adapter.jetty/run-jetty (site #'app) {:port 8080 :join? false})
         s (yonder/prep-session
             {:prepare yonder/prepare-cljs-browser
              :new-server
              {:handler (clojure.tools.nrepl.server/default-handler
                          #'cemerick.piggieback/wrap-cljs-repl)}})]
-    (is (= 6 (yonder/eval s (+ 1 2 3))))
-    (is (= 190 (yonder/eval s (reduce + (range 20)))))
-    (is (= [:a 'b ::c "d" 1 1.2 #{} () {:x :y}]
-          (yonder/eval s (into [] (js/Array :a 'b ::c "d" 1 1.2 #{} () {:x :y})))))))
+    (cljs-sanity s)))
+
+(deftest rhino-sanity
+  (let [s (yonder/prep-session
+            {:prepare yonder/prepare-cljs
+             :new-server
+             {:handler (clojure.tools.nrepl.server/default-handler
+                         #'cemerick.piggieback/wrap-cljs-repl)}})]
+    (cljs-sanity s)))
+
