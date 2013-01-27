@@ -15,7 +15,7 @@
                  [org.clojure/core.match "0.2.0-alpha11"]
                  
                  ;; TODO remove before deploying
-                 [org.clojure/clojurescript "0.0-1574"]
+                 [org.clojure/clojurescript "0.0-1576"]
                  ;; workaround http://dev.clojure.org/jira/browse/CLJS-418
                  ;; (cljsbuild does this implicitly)
                  [org.clojure/google-closure-library-third-party "0.0-2029"]]
