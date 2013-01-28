@@ -1,4 +1,4 @@
-(defproject com.cemerick/yonder "0.0.1"
+(defproject com.cemerick/yonder "0.0.1-SNAPSHOT"
   :description "Go eval this Clojure[Script] over there."
   :url "http://github.com/cemerick/yonder"
   :license {:name "Eclipse Public License"
