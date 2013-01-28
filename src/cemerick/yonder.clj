@@ -33,7 +33,7 @@
 
 ;; TODO allow quasiquote
 (defmacro eval
-  ([expr] `(eval ~*repl-session* ~expr))
+  ([expr] `(eval *repl-session* ~expr))
   ([session expr]
     `(let [code# ~(code expr)]
        (eval-value code# (eval* ~session code#)))))
@@ -58,15 +58,6 @@
                     ((:prepare repl identity) session))
       :else (throw (IllegalArgumentException.
                      (str "don't know how to make an nREPL session out of " (type repl)))))))
-
-;; TODO doesn't work due to eval macro evaluating the var
-#_
-(defmacro with-session
-  [session & body]
-  `(binding [*repl-session* ~session]
-     ~@body))
-
-
 
 ;; TODO move cljs-specific stuff into piggieback eventually
 (require 'cemerick.piggieback)
