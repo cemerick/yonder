@@ -22,6 +22,9 @@
   
   :repl-options {:nrepl-middleware [cemerick.piggieback/wrap-cljs-repl]}
   
+  ; ensures that `lein test` runs will always exit, no AWT thread opening a browser  
+  :jvm-opts ["-Djava.awt.headless=true"]
+  
   :profiles {:1.5 {:dependencies [[org.clojure/clojure "1.5.0-beta2"]]}
              :dev {:dependencies [[compojure "1.1.0"]
                                   [ring/ring-jetty-adapter "1.1.0"]]}}

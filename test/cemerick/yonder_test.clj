@@ -29,6 +29,15 @@
         </body>
       </html>"))
 
+(defn- with-webapp
+  [f]
+  (let [http (ring.adapter.jetty/run-jetty (site #'app) {:port 8080 :join? false})]
+    (try
+      (f)
+      (finally (.stop http)))))
+
+(use-fixtures :once #'with-webapp)
+
 (defn- cljs-sanity
   [session]
   (is (= 6 (yonder/eval session (+ 1 2 3))))
@@ -41,8 +50,7 @@
   (is (= :bar (yonder/eval session (foo/keywordize "bar")))))
 
 (deftest browser-repl-sanity
-  (let [http (ring.adapter.jetty/run-jetty (site #'app) {:port 8080 :join? false})
-        s (yonder/prep-session
+  (let [s (yonder/open-session
             {:prepare yonder/prepare-cljs-browser
              :new-server
              {:handler (clojure.tools.nrepl.server/default-handler
@@ -51,10 +59,18 @@
     (is (= 42 (yonder/eval s (cemerick.yonder-browser/test-function 21))))))
 
 (deftest rhino-sanity
-  (let [s (yonder/prep-session
-            {:prepare yonder/prepare-cljs
-             :new-server
-             {:handler (clojure.tools.nrepl.server/default-handler
-                         #'cemerick.piggieback/wrap-cljs-repl)}})]
+  (yonder/with-session [s (yonder/open-session
+                            {:prepare yonder/prepare-cljs
+                             :new-server
+                             {:handler (clojure.tools.nrepl.server/default-handler
+                                         #'cemerick.piggieback/wrap-cljs-repl)}})]
     (cljs-sanity s)))
 
+(deftest phantomjs-sanity
+  (yonder/with-session [s (yonder/open-session
+                            {:prepare (partial yonder/prepare-cljs-browser
+                                        {:open-browser-fn yonder/phantomjs-url-open})
+                             :new-server
+                             {:handler (clojure.tools.nrepl.server/default-handler
+                                         #'cemerick.piggieback/wrap-cljs-repl)}})]
+    (cljs-sanity s)))

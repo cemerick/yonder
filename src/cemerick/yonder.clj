@@ -44,9 +44,8 @@
                  expr)]
       `(let [code# ~expr]
          (eval-value code# (eval* ~session code#))))))
-
-;; TODO need to make the returned session .close-able, cascading to any started servers 
-(defn prep-session
+ 
+(defn open-session
   [repl]
   (let [md (meta repl)]
     (cond
@@ -54,32 +53,65 @@
       (-> md ::nrepl/taking-until :session) (vary-meta repl assoc ::prepped true)
       (::nrepl/transport md) (recur (nrepl/client-session repl))
       (instance? Transport repl) (recur (nrepl/client repl Long/MAX_VALUE))
-      (string? repl) (recur (nrepl/url-connect repl))
-      (map? repl) (let [conn (match/match [repl]
-                               [{:new-server args}]
-                               (let [server (apply server/start-server (mapcat identity args))]
-                                 (nrepl/connect :port (:port server)))
-                               
-                               [{:connection conn}] conn)
-                        session (prep-session conn)]
-                    ((:prepare repl identity) session))
+      (string? repl) (let [conn (nrepl/url-connect repl)]
+                       (recur (vary-meta update-in [::close-fns] cons #(.close conn))))
+      (map? repl) (let [[conn stop-server]
+                        (match/match [repl]
+                          [{:new-server args}]
+                          (let [server (apply server/start-server (mapcat identity args))]
+                            [(nrepl/connect :port (:port server)) #(server/stop-server server)])
+                          
+                          [{:connection conn}] [conn (constantly :no-op)])]
+                    (-> (open-session conn)
+                      ((:prepare repl identity))
+                      (vary-meta update-in [::close-fns] concat [stop-server])))
       :else (throw (IllegalArgumentException.
                      (str "don't know how to make an nREPL session out of " (type repl)))))))
+
+(defn close-session
+  [session]
+  (doseq [f (-> session meta ::close-fns)]
+    (f))
+  session)
+
+(defmacro with-session
+  [[name repl] & body]
+  `(let [~name (open-session ~repl)]
+     (binding [*repl-session* ~name]
+       (try
+         ~@body
+         (finally
+           (close-session ~name))))))
 
 ;; TODO move cljs-specific stuff into piggieback eventually
 (require 'cemerick.piggieback)
 (defn prepare-cljs
   [session]
   (eval session (cemerick.piggieback/cljs-repl))
-  session)
+  (vary-meta session update-in [::close-fns] conj #(eval session :cljs/quit)))
 
-;; TODO add hooks so this works with webdriver et al.
 (require 'cljs.repl.browser)
 (defn prepare-cljs-browser
-  ([session] (prepare-cljs-browser "http://localhost:8080" 9000 session))
-  ([browser-url browser-repl-port session]
+  ([session] (prepare-cljs-browser nil session))
+  ([{:keys [open-browser-fn url browser-repl-port]
+     :or {open-browser-fn browse-url
+          url "http://localhost:8080"
+          browser-repl-port 9000}}
+    session]
     (eval session (cemerick.piggieback/cljs-repl
-                    :repl-env (doto (cljs.repl.browser/repl-env :port 9000 #_browser-repl-port)
+                    :repl-env (doto (cljs.repl.browser/repl-env :port ~browser-repl-port)
                                 cljs.repl/-setup)))
-    (browse-url browser-url)
-    session))
+    (let [maybe-process (open-browser-fn url)]
+      (vary-meta session update-in
+        [::close-fns]
+        into (list* #(eval session :cljs/quit)
+               (when (instance? java.lang.Process maybe-process)
+                 [#(.destroy maybe-process)]))))))
+
+(defn phantomjs-url-open
+  ([url] (phantomjs-url-open "phantomjs" url))
+  ([path-to-phantomjs url]
+    {:pre [(string? url) (string? path-to-phantomjs)]}
+    (let [f (java.io.File/createTempFile "yonder_phantomjs" ".js")]
+      (spit f (format "var page = require('webpage').create(); page.open(%s);" (pr-str url)))
+      (.. Runtime getRuntime (exec (into-array String [path-to-phantomjs (.getAbsolutePath f)]))))))
