@@ -2,26 +2,18 @@
   (:require [clojure.tools.nrepl :as nrepl]
             [clojure.tools.nrepl.server :as server]
             [clojure.core.match :as match]
-            [clojure.java.browse :refer (browse-url)])
+            [clojure.java.browse :refer (browse-url)]
+            [clojure.walk :refer (prewalk postwalk)])
   (:import clojure.tools.nrepl.transport.Transport)
   (:refer-clojure :exclude (eval)))
 
 (def ^:dynamic *repl-session*)
 
-(defn- code
-  "Returns a string representation of the given expression (using
-   `clojure.tools.nrepl/code*`); if the expression is itself a string,
-   returns it unmodified."
-  [expr]
-  (if (string? expr)
-    expr
-    (nrepl/code* expr)))
-
 (defn eval*
   ([expr] (eval* *repl-session* expr))
   ([session expr]
-    {:pre [(string? expr)]}
-    (nrepl/message session {:op "eval" :code expr})))
+    (nrepl/message session
+      {:op "eval" :code (if (string? expr) expr (nrepl/code* expr))})))
 
 ;; TODO should be private (macro usage)
 (defn eval-value
@@ -31,12 +23,27 @@
     (throw (ex-info "Failed to evaluate" {:expr expr :combined-response combined})))
   (-> responses nrepl/response-values first))
 
-;; TODO allow quasiquote
 (defmacro eval
   ([expr] `(eval *repl-session* ~expr))
   ([session expr]
-    `(let [code# ~(code expr)]
-       (eval-value code# (eval* ~session code#)))))
+    ;; essentially a limited, ad-hoc unhygenic (that part is necessary) syntax-quote
+    ;; could probably make this one walk
+    (let [expr (postwalk (fn [x]
+                           (if-let [unquote (and (seq? x)
+                                              (= 'clojure.core/unquote (first x))
+                                              (second x))]
+                             (with-meta unquote {::unquote true})
+                             x))
+                 expr)
+          expr (postwalk (fn [x]
+                           (cond
+                             (-> x meta ::unquote) x
+                             (seq? x) (list* 'list x)
+                             (symbol? x) (list 'quote x)
+                             :else x))
+                 expr)]
+      `(let [code# ~expr]
+         (eval-value code# (eval* ~session code#))))))
 
 ;; TODO need to make the returned session .close-able, cascading to any started servers 
 (defn prep-session
