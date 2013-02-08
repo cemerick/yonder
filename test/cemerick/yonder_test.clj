@@ -50,11 +50,11 @@
   (is (= :bar (yonder/eval session (foo/keywordize "bar")))))
 
 (deftest browser-repl-sanity
-  (let [s (yonder/open-session
-            {:prepare yonder/prepare-cljs-browser
-             :new-server
-             {:handler (clojure.tools.nrepl.server/default-handler
-                         #'cemerick.piggieback/wrap-cljs-repl)}})]
+  (yonder/with-session [s (yonder/open-session
+                            {:prepare yonder/prepare-cljs-browser
+                             :new-server
+                             {:handler (clojure.tools.nrepl.server/default-handler
+                                         #'cemerick.piggieback/wrap-cljs-repl)}})]
     (cljs-sanity s)
     (is (= 42 (yonder/eval s (cemerick.yonder-browser/test-function 21))))))
 
