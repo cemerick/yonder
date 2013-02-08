@@ -54,14 +54,16 @@
       (::nrepl/transport md) (recur (nrepl/client-session repl))
       (instance? Transport repl) (recur (nrepl/client repl Long/MAX_VALUE))
       (string? repl) (let [conn (nrepl/url-connect repl)]
-                       (recur (vary-meta update-in [::close-fns] cons #(.close conn))))
+                       (recur (vary-meta update-in [::close-fns]
+                                cons (fn close-new-connection [] (.close conn)))))
       (map? repl) (let [[conn stop-server]
                         (match/match [repl]
                           [{:new-server args}]
                           (let [server (apply server/start-server (mapcat identity args))]
-                            [(nrepl/connect :port (:port server)) #(server/stop-server server)])
+                            [(nrepl/connect :port (:port server))
+                             (fn stop-new-server [] (server/stop-server server))])
                           
-                          [{:connection conn}] [conn (constantly :no-op)])]
+                          [{:connection conn}] [conn (fn no-op-connection [])])]
                     (-> (open-session conn)
                       ((:prepare repl identity))
                       (vary-meta update-in [::close-fns] concat [stop-server])))
@@ -88,7 +90,8 @@
 (defn prepare-cljs
   [session]
   (eval session (cemerick.piggieback/cljs-repl))
-  (vary-meta session update-in [::close-fns] conj #(eval session :cljs/quit)))
+  (vary-meta session update-in [::close-fns]
+    conj (fn shutdown-cljs-repl [] (eval session :cljs/quit))))
 
 (require 'cljs.repl.browser)
 (defn prepare-cljs-browser
@@ -104,9 +107,10 @@
     (let [maybe-process (open-browser-fn url)]
       (vary-meta session update-in
         [::close-fns]
-        into (list* #(eval session :cljs/quit)
+        into (concat
                (when (instance? java.lang.Process maybe-process)
-                 [#(.destroy maybe-process)]))))))
+                 [(fn destroy-phantomjs-process [] (.destroy maybe-process))])
+               [(fn shutdown-cljs-repl [] (eval session :cljs/quit))])))))
 
 (defn phantomjs-url-open
   ([url] (phantomjs-url-open "phantomjs" url))
