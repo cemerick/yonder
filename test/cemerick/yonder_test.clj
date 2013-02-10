@@ -49,6 +49,7 @@
   (yonder/eval session (in-ns 'cljs.user))
   (is (= :bar (yonder/eval session (foo/keywordize "bar")))))
 
+#_
 (deftest browser-repl-sanity
   (yonder/with-session [s (yonder/open-session
                             {:prepare yonder/prepare-cljs-browser
@@ -60,7 +61,7 @@
 
 (deftest rhino-sanity
   (yonder/with-session [s (yonder/open-session
-                            {:prepare yonder/prepare-cljs
+                            {:prepare yonder/prepare-rhino
                              :new-server
                              {:handler (clojure.tools.nrepl.server/default-handler
                                          #'cemerick.piggieback/wrap-cljs-repl)}})]
@@ -68,8 +69,7 @@
 
 (deftest phantomjs-sanity
   (yonder/with-session [s (yonder/open-session
-                            {:prepare (partial yonder/prepare-cljs-browser
-                                        {:open-browser-fn yonder/phantomjs-url-open})
+                            {:prepare yonder/prepare-phantomjs
                              :new-server
                              {:handler (clojure.tools.nrepl.server/default-handler
                                          #'cemerick.piggieback/wrap-cljs-repl)}})]

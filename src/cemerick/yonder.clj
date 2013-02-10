@@ -3,7 +3,7 @@
             [clojure.tools.nrepl.server :as server]
             [clojure.core.match :as match]
             [clojure.java.browse :refer (browse-url)]
-            [clojure.walk :refer (prewalk postwalk)])
+            [clojure.walk :refer (prewalk postwalk walk)])
   (:import clojure.tools.nrepl.transport.Transport)
   (:refer-clojure :exclude (eval)))
 
@@ -26,25 +26,39 @@
 (defmacro eval
   ([expr] `(eval *repl-session* ~expr))
   ([session expr]
-    ;; essentially a limited, ad-hoc unhygenic (that part is necessary) syntax-quote
-    ;; could probably make this one walk
-    (let [expr (postwalk (fn [x]
-                           (if-let [unquote (and (seq? x)
-                                              (= 'clojure.core/unquote (first x))
-                                              (second x))]
-                             (with-meta unquote {::unquote true})
-                             x))
-                 expr)
-          expr (postwalk (fn [x]
-                           (cond
-                             (-> x meta ::unquote) x
-                             (seq? x) (list* 'list x)
-                             (symbol? x) (list 'quote x)
-                             :else x))
-                 expr)]
-      `(let [code# ~expr]
-         (eval-value code# (eval* ~session code#))))))
- 
+    ;; essentially a limited, unhygenic (can't have
+    ;; symbols getting namespace-qualified in Clojure that are going to be
+    ;; resolved in ClojureScript) syntax-quote
+    (letfn [(unquote? [x] (-> x meta ::unquote))
+            (splicing? [x] (-> x meta ::unquote-splicing))
+            (protect-splicings [x]
+              (if (splicing? x)
+                x
+                (walk protect-splicings unquote x)))
+            (unquote [x]
+              (cond
+                (unquote? x) x
+                (symbol? x) (list 'quote x)
+                (seq? x) (list* 'concat
+                          (mapv #(if (splicing? %)
+                                   %
+                                   [%]) x))
+                (vector? x) (vec (apply concat
+                                   (mapv #(if (splicing? %)
+                                            %
+                                            [%]) x)))
+                :else x))]
+      (let [expr (postwalk #(match/match [%]
+                              [(['clojure.core/unquote v] :seq)]
+                              (with-meta v {::unquote true})
+                              [(['clojure.core/unquote-splicing s] :seq)]
+                              (with-meta s {::unquote-splicing true})
+                              :else %)
+                   expr)
+            expr (walk protect-splicings unquote expr)]
+        `(let [code# ~expr]
+           (eval-value code# (eval* ~session code#)))))))
+
 (defn open-session
   [repl]
   (let [md (meta repl)]
@@ -85,37 +99,54 @@
          (finally
            (close-session ~name))))))
 
+#_(defn- reset-browser-repl-server
+  []
+  (-> @cljs.repl.server/state :socket .close))
+
 ;; TODO move cljs-specific stuff into piggieback eventually
 (require 'cemerick.piggieback)
-(defn prepare-cljs
+(require 'cljs.repl.browser)
+(defn prepare-rhino
   [session]
   (eval session (cemerick.piggieback/cljs-repl))
   (vary-meta session update-in [::close-fns]
     conj (fn shutdown-cljs-repl [] (eval session :cljs/quit))))
-
-(require 'cljs.repl.browser)
-(defn prepare-cljs-browser
-  ([session] (prepare-cljs-browser nil session))
-  ([{:keys [open-browser-fn url browser-repl-port]
-     :or {open-browser-fn browse-url
-          url "http://localhost:8080"
-          browser-repl-port 9000}}
-    session]
-    (eval session (cemerick.piggieback/cljs-repl
-                    :repl-env (doto (cljs.repl.browser/repl-env :port ~browser-repl-port)
-                                cljs.repl/-setup)))
-    (let [maybe-process (open-browser-fn url)]
-      (vary-meta session update-in
-        [::close-fns]
-        into (concat
-               (when (instance? java.lang.Process maybe-process)
-                 [(fn destroy-phantomjs-process [] (.destroy maybe-process))])
-               [(fn shutdown-cljs-repl [] (eval session :cljs/quit))])))))
 
 (defn phantomjs-url-open
   ([url] (phantomjs-url-open "phantomjs" url))
   ([path-to-phantomjs url]
     {:pre [(string? url) (string? path-to-phantomjs)]}
     (let [f (java.io.File/createTempFile "yonder_phantomjs" ".js")]
+      ;; TODO bother cleaning up the temp script?
       (spit f (format "var page = require('webpage').create(); page.open(%s);" (pr-str url)))
       (.. Runtime getRuntime (exec (into-array String [path-to-phantomjs (.getAbsolutePath f)]))))))
+
+(defrecord PhantomjsEnv [browser-env phantomjs-process]
+  cljs.repl/IJavaScriptEnv
+  (-setup [this] (cljs.repl/-setup browser-env))
+  (-evaluate [this a b c] (cljs.repl/-evaluate browser-env a b c))
+  (-load [this ns url] (cljs.repl/-load browser-env ns url))
+  (-tear-down [_]
+    (cljs.repl/-tear-down browser-env)
+    (.destroy phantomjs-process)))
+
+(defn phantomjs-env
+  [& {:keys [phantomjs-path browser-repl-port url]
+      :or {phantomjs-path "phantomjs"
+           browser-repl-port 9000
+           url "http://localhost:8080"}}]
+  (let [browser-env (cljs.repl.browser/repl-env :port browser-repl-port)
+        phantom-env (PhantomjsEnv. browser-env nil)]
+    (cljs.repl/-setup phantom-env)
+    (assoc phantom-env
+      :phantomjs-process (phantomjs-url-open phantomjs-path url))))
+
+(defn prepare-phantomjs
+  ([session] (prepare-phantomjs nil session))
+  ([phantomjs-env-options session]
+    (eval session (cemerick.piggieback/cljs-repl
+                    :repl-env (cemerick.yonder/phantomjs-env
+                                ~@(mapcat identity phantomjs-env-options))))
+    (vary-meta session update-in
+        [::close-fns]
+        conj (fn shutdown-phantomjs-repl [] (eval session :cljs/quit)))))
