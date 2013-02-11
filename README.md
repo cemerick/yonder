@@ -1,6 +1,4 @@
-# yonder
-
-<!--[![Travis CI status](https://secure.travis-ci.org/cemerick/yonder.png)](http://travis-ci.org/#!/cemerick/yonder/builds)-->
+# yonder [![Travis CI status](https://secure.travis-ci.org/cemerick/yonder.png)](http://travis-ci.org/#!/cemerick/yonder/builds)
 
 "Go eval this Clojure[Script] over there."
 

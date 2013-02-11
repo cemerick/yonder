@@ -25,15 +25,14 @@
   ; ensures that `lein test` runs will always exit, no AWT thread opening a browser  
   :jvm-opts ["-Djava.awt.headless=true"]
   
-  :profiles {:1.5 {:dependencies [[org.clojure/clojure "1.5.0-beta2"]]}
-             :dev {:dependencies [[compojure "1.1.0"]
+  :profiles {:dev {:dependencies [[compojure "1.1.0"]
                                   [ring/ring-jetty-adapter "1.1.0"]]}}
   
   :repositories {"snapshots" {:url "https://oss.sonatype.org/content/repositories/snapshots/"}}
   :deploy-repositories {"releases" {:url "https://oss.sonatype.org/service/local/staging/deploy/maven2/" :creds :gpg}
                         "snapshots" {:url "https://oss.sonatype.org/content/repositories/snapshots/" :creds :gpg}}
   
-  :aliases  {"all" ["with-profile" "dev:dev,1.5"]}
+  ;;:aliases  {"all" ["with-profile" "dev:dev,1.5"]}
   
   ;;maven central requirements
   :scm {:url "git@github.com:cemerick/yonder.git"}
