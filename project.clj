@@ -13,6 +13,7 @@
                  [com.cemerick/piggieback "0.0.2" #_#_:optional true]
                  
                  [org.clojure/core.match "0.2.0-alpha11"]
+                 [backtick "0.3.0-SNAPSHOT"]
                  
                  ;; TODO remove before deploying
                  [org.clojure/clojurescript "0.0-1576"]

@@ -47,7 +47,10 @@
   (yonder/eval session (ns foo))
   (yonder/eval session (defn keywordize [x] (keyword x)))
   (yonder/eval session (in-ns 'cljs.user))
-  (is (= :bar (yonder/eval session (foo/keywordize "bar")))))
+  (is (= :bar (yonder/eval session (foo/keywordize "bar"))))
+  (testing "backtick (syntax-quote w/o symbol resolution/qualification)"
+    (let [x (range 5)]
+      (is (= (apply + (last x) x) (yonder/eval session (+ ~(last x) ~@x)))))))
 
 #_
 (deftest browser-repl-sanity

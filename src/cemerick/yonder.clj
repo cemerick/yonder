@@ -2,6 +2,7 @@
   (:require [clojure.tools.nrepl :as nrepl]
             [clojure.tools.nrepl.server :as server]
             [clojure.core.match :as match]
+            [backtick :refer (template)]
             [clojure.java.browse :refer (browse-url)]
             [clojure.walk :refer (prewalk postwalk walk)])
   (:import clojure.tools.nrepl.transport.Transport)
@@ -26,38 +27,8 @@
 (defmacro eval
   ([expr] `(eval *repl-session* ~expr))
   ([session expr]
-    ;; essentially a limited, unhygenic (can't have
-    ;; symbols getting namespace-qualified in Clojure that are going to be
-    ;; resolved in ClojureScript) syntax-quote
-    (letfn [(unquote? [x] (-> x meta ::unquote))
-            (splicing? [x] (-> x meta ::unquote-splicing))
-            (protect-splicings [x]
-              (if (splicing? x)
-                x
-                (walk protect-splicings unquote x)))
-            (unquote [x]
-              (cond
-                (unquote? x) x
-                (symbol? x) (list 'quote x)
-                (seq? x) (list* 'concat
-                          (mapv #(if (splicing? %)
-                                   %
-                                   [%]) x))
-                (vector? x) (vec (apply concat
-                                   (mapv #(if (splicing? %)
-                                            %
-                                            [%]) x)))
-                :else x))]
-      (let [expr (postwalk #(match/match [%]
-                              [(['clojure.core/unquote v] :seq)]
-                              (with-meta v {::unquote true})
-                              [(['clojure.core/unquote-splicing s] :seq)]
-                              (with-meta s {::unquote-splicing true})
-                              :else %)
-                   expr)
-            expr (walk protect-splicings unquote expr)]
-        `(let [code# ~expr]
-           (eval-value code# (eval* ~session code#)))))))
+    `(let [code# (template ~expr)]
+       (eval-value code# (eval* ~session code#)))))
 
 (defn open-session
   [repl]
