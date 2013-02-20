@@ -16,10 +16,7 @@
                  [backtick "0.3.0-SNAPSHOT"]
                  
                  ;; TODO remove before deploying
-                 [org.clojure/clojurescript "0.0-1576"]
-                 ;; workaround http://dev.clojure.org/jira/browse/CLJS-418
-                 ;; (cljsbuild does this implicitly)
-                 [org.clojure/google-closure-library-third-party "0.0-2029"]]
+                 [org.clojure/clojurescript "0.0-1586"]]
   
   :repl-options {:nrepl-middleware [cemerick.piggieback/wrap-cljs-repl]}
   
