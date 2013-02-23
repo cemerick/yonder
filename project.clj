@@ -1,4 +1,4 @@
-(defproject com.cemerick/yonder "0.0.1-SNAPSHOT"
+(defproject com.cemerick/yonder "0.0.2-SNAPSHOT"
   :description "Go eval this Clojure[Script] over there."
   :url "http://github.com/cemerick/yonder"
   :license {:name "Eclipse Public License"
@@ -12,7 +12,7 @@
                  ;; stuff into...piggieback?
                  [com.cemerick/piggieback "0.0.2" #_#_:optional true]
                  
-                 [org.clojure/core.match "0.2.0-alpha11"]
+                 [org.clojure/core.match "0.2.0-alpha12"]
                  [backtick "0.3.0-SNAPSHOT"]
                  
                  ;; TODO remove before deploying
