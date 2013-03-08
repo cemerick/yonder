@@ -6,7 +6,7 @@
   :min-lein-version "2.0.0"
   :dependencies [[org.clojure/clojure "1.5.0-RC4"]
                  
-                 [org.clojure/tools.nrepl "0.2.2-SNAPSHOT"]
+                 [org.clojure/tools.nrepl "0.2.2"]
                  
                  ;; TODO this should be made optional eventually, move all the cljs-specific
                  ;; stuff into...piggieback?
