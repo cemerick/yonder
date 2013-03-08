@@ -44,7 +44,7 @@ or would like to contribute patches.
 
 ## License
 
-Copyright © 2013 Chas Emerick and other contributors.  Special thanks to [Wei Hsu](https://github.com/yayitswei) for early encouragement and quality feedback.
+Copyright © 2013 Chas Emerick and other contributors.  Special thanks to [Wei Hsu](https://github.com/yayitswei) at [Versal](http://versal.com) for early encouragement and quality feedback.
 
 Distributed under the Eclipse Public License, the same as Clojure.
 
